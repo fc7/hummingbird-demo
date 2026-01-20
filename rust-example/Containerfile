@@ -1,0 +1,18 @@
+# multi-stage build
+FROM quay.io/hummingbird/rust:latest-builder AS builder
+WORKDIR /tmp
+
+COPY ./ .
+
+# tool to generate an SBOM for our Rust app
+RUN cargo install cargo-sbom
+RUN cargo build --release
+# generate sbom
+RUN cargo sbom > cargo-sbom.json
+
+# second stage
+FROM quay.io/hummingbird/core-runtime:latest
+COPY --from=builder /tmp/target/release/rust-example /usr/bin/rust-example
+COPY --from=builder /tmp/cargo-sbom.json /cargo-sbom.json
+EXPOSE 8080
+CMD [ "/usr/bin/rust-example" ]

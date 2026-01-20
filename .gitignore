@@ -1,0 +1,4 @@
+*.txt
+*.sbom.json
+rust-example/target
+README_PRIVATE.md

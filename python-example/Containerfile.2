@@ -1,0 +1,19 @@
+FROM quay.io/hummingbird/python:latest-builder as builder
+USER 0
+RUN dnf install -y --use-host-config \
+        --setopt=install_weak_deps=0 \
+        --nodocs \
+        --installroot=/rootfs \
+        python3-numpy && dnf clean all
+WORKDIR /tmp
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --prefix=/usr --root /rootfs -r /tmp/requirements.txt
+RUN mkdir /rootfs/app
+COPY app.py /rootfs/app/
+# second stage: runtime image with bare minimum
+FROM quay.io/hummingbird/python:latest
+COPY --from=builder /rootfs /
+WORKDIR /app
+USER 1001
+EXPOSE 8080
+CMD ["python3", "./app.py"]
