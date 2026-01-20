@@ -24,17 +24,13 @@ More details about the project can be found [on this page](https://hummingbird-p
 
 ## DEMO
 
-### Lab environment
-
 Each participant can use the RHEL 10 open lab environment under <https://www.redhat.com/en/interactive-labs/enterprise-linux#operate> to reproduce the demo (requires a RH account).
 
 Podman and other tools are already installed.
 
 The environment stops and is deleted after 60 minutes.
 
-### Overview
-
-1. run the `curl` image
+<!-- 1. run the `curl` image
 1. do a vulnerability scan of the curl image
 1. examine the content of the `curl` image with `skopeo`
 1. run the `httpd` image
@@ -45,9 +41,9 @@ The environment stops and is deleted after 60 minutes.
     * UBI vs Hummingbird using actix-qrcode demo app (show differences between Containerfiles)
 1. build rust image with simpler demo example
 1. Generate sbom for image (ci image)
-1. Vulnerability scans with grype (ci image)
+1. Vulnerability scans with grype (ci image) -->
 
-#### 1. Use curl image
+### 1. Use curl image
 
 The Hummingbird curl image is similar to [curlimages/curl](https://hub.docker.com/r/curlimages/curl) from Docker Hub.
 
@@ -95,39 +91,7 @@ rm curl-tags.txt
 
 More details on the three variants: <https://hummingbird-project.io/docs/using/#understanding-image-variants>
 
-```sh
-podman run -d --name httpd-server -p 8080:8080 quay.io/hummingbird/httpd:latest
-curl localhost:8080
-```
-
-Alternatively run curl in a container within the same network:
-
-```sh
-podman network create my-network
-podman run -d --name httpd-server --network my-network -p 8080:8080 quay.io/hummingbird/httpd:latest
-podman run --network my-network quay.io/hummingbird/curl -s localhost:8080
-```
-
-Vulnerability scan of the httpd image:
-
-```sh
-$ podman run --volume vuln-db:/tmp/.cache quay.io/hummingbird-ci/gitlab-ci grype-hummingbird.sh quay.io/hummingbird/httpd:latest
-NAME              INSTALLED  TYPE    VULNERABILITY  SEVERITY  EPSS           RISK
-coreutils-single  9.9        binary  CVE-2016-2781  Medium    < 0.1% (24th)  < 0.1
-```
-
-### Exercice: repeat during the workshop
-
-```sh
-pushd `mktemp -d`
-skopeo copy --dest-decompress --all docker://quay.io/hummingbird/curl:latest dir:.
-file *       # NB: there is one layer for amd64 and an another one for arm64
-tar -tf ... | grep '^usr/bin' 
-rm *
-popd
-```
-
-#### Apache httpd image
+### 2. Using the Apache httpd image
 
 This image provides the httpd Apache server.
 
@@ -146,6 +110,16 @@ $ curl localhost:8080
 </html>
 ```
 
+Alternatively run curl in a container within the same network:
+
+```sh
+podman network create my-network
+podman run -d --name httpd-server --network my-network -p 8080:8080 quay.io/hummingbird/httpd:latest
+podman run --network my-network quay.io/hummingbird/curl -s localhost:8080
+```
+
+#### Custom httpd image
+
 Now let's build a custom image based on httpd.
 
 Go to the [httpd-demo-app folder](./httpd-demo-app/) which contains the following `Containerfile` together with a simple webpage (html + css):
@@ -157,15 +131,15 @@ COPY index.html /usr/local/apache2/htdocs/
 COPY style.css /usr/local/apache2/htdocs/css/
 ```
 
-Build the above image:
+Now build the above image:
 
 ```sh
 podman build -t custom-httpd .
 ```
 
-NB: The same image can also be found under `quay.io/rh_ee_fcharett/hummingbird-httpd-demo:latest`
+The same image can also be found under `quay.io/rh_ee_fcharett/hummingbird-httpd-demo:latest`.
 
-Then run it
+Then run it with
 
 ```sh
 podman run -d --rm -p 8081:8080 custom-httpd # or use the above image
@@ -173,7 +147,27 @@ podman run -d --rm -p 8081:8080 custom-httpd # or use the above image
 
 Point your browser to `localhost:8081`.
 
-#### Multi-stage build with a Rust app
+#### Vulnerability scan
+
+```sh
+$ podman run --volume vuln-db:/tmp/.cache quay.io/hummingbird-ci/gitlab-ci grype-hummingbird.sh quay.io/hummingbird/httpd:latest
+NAME              INSTALLED  TYPE    VULNERABILITY  SEVERITY  EPSS           RISK
+coreutils-single  9.9        binary  CVE-2016-2781  Medium    < 0.1% (24th)  < 0.1
+```
+
+Now it might be useful for auditing purposes to have a closer inspection of the content of an image.
+We can do this with skopeo.
+
+```sh
+pushd `mktemp -d`
+skopeo copy --dest-decompress --all docker://quay.io/hummingbird/curl:latest dir:.
+file *       # NB: there is one layer for amd64 and an another one for arm64
+tar -tf ... | grep '^usr/bin' 
+rm *
+popd
+```
+
+### 3. Rust app with multi-stage build
 
 Have a look at the [Containerfile](./rust-example/Containerfile).
 
@@ -196,7 +190,7 @@ We have included a SBOM in our final container image to enable vulnerability "sc
 
 **Bonus**: Build and run my [qrcode Rust app](https://github.com/fc7/actix-qrcode) on Github using the provided `Containerfile.hummingbird`. Compare it to the UBI-based `Containerfile`.
 
-#### Python example
+### 4. Python example
 
 ```sh
 cd python-example
@@ -227,6 +221,8 @@ libxml2           2.12.10                     binary  CVE-2025-6170   Low       
 ```
 
 Hmm ... because we had to install some dependencies, we had to use the builder image, but this has some vulnerabilities!
+
+#### Multi-stage minimal version
 
 Now let's try a more complex multi-stage build to solve this, to really have the smallest possible runtime image for our Python app in the end.
 
