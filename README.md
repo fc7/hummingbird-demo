@@ -30,19 +30,6 @@ Podman and other tools are already installed.
 
 The environment stops and is deleted after 60 minutes.
 
-<!-- 1. run the `curl` image
-1. do a vulnerability scan of the curl image
-1. examine the content of the `curl` image with `skopeo`
-1. run the `httpd` image
-1. build a custom `httpd` image
-1. run it together in the same network (using `curl` image to call the `httpd` image)
-1. Rust images
-    * Look at the [documentation](https://quay.io/repository/hummingbird/rust)
-    * UBI vs Hummingbird using actix-qrcode demo app (show differences between Containerfiles)
-1. build rust image with simpler demo example
-1. Generate sbom for image (ci image)
-1. Vulnerability scans with grype (ci image) -->
-
 ### 1. Use curl image
 
 The Hummingbird curl image is similar to [curlimages/curl](https://hub.docker.com/r/curlimages/curl) from Docker Hub.
@@ -53,7 +40,7 @@ podman run quay.io/hummingbird/curl -s https://api.ipify.org?format=json | jq
 
 More use cases: <https://quay.io/repository/hummingbird/curl>
 
-Vulnerability scan on the curl image:
+Now let's use the grype tool included in the hummingbird CI image to scan the above curl image for eventual vulnerabilities:
 
 ```sh
 podman run --volume vuln-db:/tmp/.cache quay.io/hummingbird-ci/gitlab-ci grype-hummingbird.sh quay.io/hummingbird/curl:latest
@@ -69,7 +56,7 @@ Building CPE vendor lookup map...
 No vulnerabilities found
 ```
 
-Let's examine the content of the `curl` image with `skopeo`:
+Let's now examine the content of the `curl` image with `skopeo`:
 
 ```sh
 pushd `mktemp -d`
@@ -115,7 +102,7 @@ Alternatively run curl in a container within the same network:
 ```sh
 podman network create my-network
 podman run -d --name httpd-server --network my-network -p 8080:8080 quay.io/hummingbird/httpd:latest
-podman run --network my-network quay.io/hummingbird/curl -s localhost:8080
+podman run --network my-network quay.io/hummingbird/curl -s httpd-server:8080
 ```
 
 #### Custom httpd image
