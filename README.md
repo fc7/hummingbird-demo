@@ -56,7 +56,7 @@ Building CPE vendor lookup map...
 No vulnerabilities found
 ```
 
-Let's now examine the content of the `curl` image with `skopeo`:
+Now it might be useful for auditing purposes to have a closer inspection of the content of an image. We can do this with [`skopeo`](https://github.com/containers/skopeo):
 
 ```sh
 pushd `mktemp -d`
@@ -101,15 +101,15 @@ Alternatively run curl in a container within the same network:
 
 ```sh
 podman network create my-network
-podman run -d --name httpd-server --network my-network -p 8080:8080 quay.io/hummingbird/httpd:latest
-podman run --network my-network quay.io/hummingbird/curl -s httpd-server:8080
+podman run -d --name httpd --network my-network -p 8080:8080 quay.io/hummingbird/httpd:latest
+podman run --network my-network quay.io/hummingbird/curl -s httpd:8080
 ```
 
 #### Custom httpd image
 
-Now let's build a custom image based on httpd.
+Now let's build a custom image based on the above `httpd` image.
 
-Go to the [httpd-demo-app folder](./httpd-demo-app/) which contains the following `Containerfile` together with a simple webpage (html + css):
+Go to the [httpd-demo-app folder](./httpd-demo-app/), which contains the following `Containerfile`, together with some assets (html + css) for a simple demo webpage:
 
 ```dockerfile
 FROM quay.io/hummingbird/httpd:latest
@@ -118,23 +118,25 @@ COPY index.html /usr/local/apache2/htdocs/
 COPY style.css /usr/local/apache2/htdocs/css/
 ```
 
-Now build the above image:
+We can build it locally with podman:
 
 ```sh
 podman build -t custom-httpd .
 ```
 
-The same image can also be found under `quay.io/rh_ee_fcharett/hummingbird-httpd-demo:latest`.
+NB: The same image is also readily available under `quay.io/rh_ee_fcharett/hummingbird-httpd-demo:latest`.
 
-Then run it with
+Then run it with:
 
 ```sh
-podman run -d --rm -p 8081:8080 custom-httpd # or use the above image
+podman run -d --rm -p 8081:8080 custom-httpd # or use the already built image
 ```
 
-Point your browser to `localhost:8081`.
+Point your browser to `localhost:8081` and admire the web app.
 
 #### Vulnerability scan
+
+Here again we can run a vulnerability scan of our custom image. When running grype from the container image, this need to come from an accessible registry (it won't work with a locally built image):
 
 ```sh
 $ podman run --volume vuln-db:/tmp/.cache quay.io/hummingbird-ci/gitlab-ci grype-hummingbird.sh quay.io/hummingbird/httpd:latest
@@ -142,27 +144,18 @@ NAME              INSTALLED  TYPE    VULNERABILITY  SEVERITY  EPSS           RIS
 coreutils-single  9.9        binary  CVE-2016-2781  Medium    < 0.1% (24th)  < 0.1
 ```
 
-Now it might be useful for auditing purposes to have a closer inspection of the content of an image.
-We can do this with skopeo.
-
-```sh
-pushd `mktemp -d`
-skopeo copy --dest-decompress --all docker://quay.io/hummingbird/curl:latest dir:.
-file *       # NB: there is one layer for amd64 and an another one for arm64
-tar -tf ... | grep '^usr/bin' 
-rm *
-popd
-```
-
 ### 3. Rust app with multi-stage build
 
 Have a look at the [Containerfile](./rust-example/Containerfile).
 
 ```sh
-RUST_IMG=rust-example # or use quay.io/rh_ee_fcharett/hummingbird-rust-demo
+RUST_IMG=rust-example 
+# Alternatively, use the following and skip the build
+# RUST_IMG=quay.io/rh_ee_fcharett/hummingbird-rust-demo 
 cd rust-example
 podman build -t ${RUST_IMG} .
 podman create --name hello -p 8088:8080 ${RUST_IMG}
+# while it is building, let's have a look at the Containerfile and explain the following steps
 podman cp hello:/cargo-sbom.json cargo-sbom.json
 podman run --rm --volume vuln-db:/tmp/.cache quay.io/hummingbird-ci/gitlab-ci grype-hummingbird.sh ${RUST_IMG}
 podman run -it --rm --volume vuln-db:/tmp/.cache --volume ./cargo-sbom.json:/cargo-sbom.json:z --entrypoint=/bin/sh quay.io/hummingbird-ci/gitlab-ci
