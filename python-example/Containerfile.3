@@ -1,0 +1,20 @@
+FROM registry.access.redhat.com/ubi10/ubi:latest as builder
+USER 0
+RUN dnf install -y python3 python3-pip
+RUN dnf install -y \
+        --releasever=10 \
+        --setopt=install_weak_deps=0 \
+        --nodocs \
+        --installroot=/rootfs \
+        libstdc++ libgcc python3 && dnf clean all --installroot=/rootfs
+COPY requirements.txt /tmp/
+RUN pip3 install --no-cache-dir --prefix=/usr --root /rootfs -r /tmp/requirements.txt
+RUN mkdir /rootfs/app
+COPY app.py /rootfs/app/
+# second stage: runtime image with bare minimum
+FROM registry.access.redhat.com/ubi10/ubi-micro:latest
+COPY --from=builder /rootfs /
+WORKDIR /app
+USER 1001
+EXPOSE 8080
+CMD ["python3", "./app.py"]

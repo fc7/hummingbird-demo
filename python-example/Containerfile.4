@@ -1,0 +1,51 @@
+# Stage 1: The Nested Builder
+FROM registry.access.redhat.com/ubi10/ubi:latest AS build
+
+RUN dnf install -y buildah python3 python3-pip \
+  && dnf clean all
+
+# Copy the app files into the container so the script can access them
+COPY app.py requirements.txt /src/
+
+# Run the nested buildah build
+RUN <<'NESTED_BUILD'
+set -euo pipefail
+
+# 1. Start the nested container
+UBI_CONTAINER="$(buildah --storage-driver=vfs from registry.access.redhat.com/ubi10/ubi-micro:latest)"
+MOUNTPOINT="$(buildah --storage-driver=vfs mount "$UBI_CONTAINER")"
+
+# 2. Install system dependencies
+dnf install -y --installroot="${MOUNTPOINT}" --releasever=10 \
+  --setopt=install_weak_deps=0 --nodocs \
+  libstdc++ libgcc python3
+dnf clean all --installroot="${MOUNTPOINT}"
+
+# 3. Install Python packages
+pip3 install --no-cache-dir --prefix=/usr/local --root "${MOUNTPOINT}" -r /src/requirements.txt
+
+# 4. Setup application file
+install -d "${MOUNTPOINT}/app"
+install -m 0644 /src/app.py "${MOUNTPOINT}/app/app.py"
+
+# 5. Create user
+if ! grep -q '^appuser:' "${MOUNTPOINT}/etc/passwd" 2>/dev/null; then
+  printf '%s\n' 'appuser:x:1001:0:Application user:/app:/sbin/nologin' >> "${MOUNTPOINT}/etc/passwd"
+fi
+
+# 6. Copy rootfs out of the mount (before unmount) for Stage 2 COPY --from
+mkdir -p /tmp/extracted-rootfs
+cp -a "${MOUNTPOINT}/." /tmp/extracted-rootfs/
+
+# 7. Cleanup
+buildah --storage-driver=vfs unmount "$UBI_CONTAINER"
+buildah --storage-driver=vfs rm "$UBI_CONTAINER"
+NESTED_BUILD
+
+# Stage 2: The Final Micro Image
+FROM scratch
+COPY --from=build /tmp/extracted-rootfs/ /
+WORKDIR /app
+USER 1001
+EXPOSE 8080
+CMD ["python3", "./app.py"]

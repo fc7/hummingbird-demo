@@ -1,4 +1,6 @@
 *.txt
 *.sbom.json
 rust-example/target
+python-example/out.ociarchive
 README_PRIVATE.md
+HUM-201.pdf

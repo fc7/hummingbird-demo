@@ -1,12 +1,12 @@
 FROM quay.io/hummingbird/python:latest-builder as builder
 USER 0
-RUN dnf install -y --use-host-config \
+RUN REL="$(rpm -E '%{rhel}')" && dnf install -y \
+        --releasever="${REL}" \
         --setopt=install_weak_deps=0 \
         --nodocs \
         --installroot=/rootfs \
-        python3-numpy && dnf clean all
-WORKDIR /tmp
-COPY requirements.txt ./
+        libstdc++ libgcc && dnf clean all --installroot=/rootfs
+COPY requirements.txt /tmp/
 RUN pip install --no-cache-dir --prefix=/usr --root /rootfs -r /tmp/requirements.txt
 RUN mkdir /rootfs/app
 COPY app.py /rootfs/app/
