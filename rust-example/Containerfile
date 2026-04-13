@@ -4,8 +4,8 @@ WORKDIR /tmp
 
 COPY ./ .
 
-# Parallel rustc jobs can exhaust container memory
-ENV CARGO_BUILD_JOBS=1
+# NB: uncomment the next line if you do not have enough memory to build in parallel
+# ENV CARGO_BUILD_JOBS=1
 
 # tool to generate an SBOM for our Rust app
 RUN cargo install cargo-sbom
